@@ -329,7 +329,8 @@ export class FilePermissions {
    */
   public static restrictTreeToOwner(rootPath: string): void {
     if (OperatingSystem.isWin32()) {
-      FilePermissions.restrictToOwnerWindows(rootPath, true);
+      const isDirectory: boolean = fs.statSync(rootPath).isDirectory();
+      FilePermissions.restrictToOwnerWindows(rootPath, isDirectory);
       return;
     }
 

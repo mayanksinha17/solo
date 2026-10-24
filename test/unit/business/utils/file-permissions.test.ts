@@ -84,4 +84,51 @@ describe('FilePermissions', (): void => {
       });
     }
   });
+
+  describe('restrictTreeToOwner on Windows', (): void => {
+    let statStub: sinon.SinonStub;
+
+    beforeEach((): void => {
+      isWin32Stub.returns(true);
+      statStub = sinon.stub(fs, 'statSync');
+    });
+
+    afterEach((): void => {
+      statStub.restore();
+    });
+
+    it('should distinguish between a file and a directory when restricting permissions', (): void => {
+      statStub.withArgs(String.raw`C:\solo\cache\manifest.yaml`).returns({
+        isDirectory: (): boolean => false,
+      } as unknown as fs.Stats);
+      statStub.withArgs(String.raw`C:\solo\cache\dir`).returns({
+        isDirectory: (): boolean => true,
+      } as unknown as fs.Stats);
+
+      interface FilePermissionsInternal {
+        restrictToOwnerWindows: (targetPath: string, isDirectory: boolean) => void;
+      }
+
+      const restrictSpy: sinon.SinonSpy = sinon.spy(
+        FilePermissions as unknown as FilePermissionsInternal,
+        'restrictToOwnerWindows',
+      );
+
+      FilePermissions.restrictTreeToOwner(String.raw`C:\solo\cache\manifest.yaml`);
+      expect(restrictSpy.calledOnceWithExactly(String.raw`C:\solo\cache\manifest.yaml`, false)).to.be.true;
+
+      restrictSpy.resetHistory();
+
+      FilePermissions.restrictTreeToOwner(String.raw`C:\solo\cache\dir`);
+      expect(restrictSpy.calledOnceWithExactly(String.raw`C:\solo\cache\dir`, true)).to.be.true;
+    });
+
+    it('should propagate a stat error when the target path does not exist', (): void => {
+      statStub.withArgs(String.raw`C:\solo\cache\missing.yaml`).throws(new Error('ENOENT: no such file or directory'));
+
+      expect((): void => {
+        FilePermissions.restrictTreeToOwner(String.raw`C:\solo\cache\missing.yaml`);
+      }).to.throw('ENOENT: no such file or directory');
+    });
+  });
 });
